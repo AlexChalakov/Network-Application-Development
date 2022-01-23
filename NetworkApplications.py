@@ -6,7 +6,10 @@ import socket
 import os
 import sys
 import struct
+from tabnanny import check
 import time
+
+import select   #additional needed import
 
 
 def setupArgumentParser() -> argparse.Namespace:
@@ -94,33 +97,85 @@ class ICMPPing(NetworkApplication):
 
     def receiveOnePing(self, icmpSocket, destinationAddress, ID, timeout):
         # 1. Wait for the socket to receive a reply
+        timeLeft = timeout
+        while True: #while waiting for packet
+            selectStart = time.time()   #start time
+            inputReady = select.select([icmpSocket], [], [], timeLeft)  #putting the time left into the equation
+            selectTime = (time.time() - selectStart) #after the time left, we get the overall time minus the start time
+
         # 2. Once received, record time of receipt, otherwise, handle a timeout
+            timeReceived = time.time()
+            recordReceipt, address = icmpSocket.recvfrom(1024)
+
+            if inputReady[0] == []:
+                return "Timeout"
+
         # 3. Compare the time of receipt to time of sending, producing the total network delay
         # 4. Unpack the packet header for useful information, including the ID
+            icmpHeader = recordReceipt[20:28]
+            icmpType, icmpCode, icmpChecksum, icmpId, icmpSequence = struct.unpack("bbHHh", icmpHeader)
+
         # 5. Check that the ID matches between the request and reply
         # 6. Return total network delay
+            if type != 8 and icmpId == ID:
+                bytesDouble = struct.calcsize("d")
+                timeSent = struct.unpack("d", recordReceipt[28:28 + bytesDouble])[0]
+                networkDelay = timeReceived - timeSent
+
+            timeLeft -= selectTime
+            if timeLeft <= 0:
+                return "Timeout"
         pass
 
     def sendOnePing(self, icmpSocket, destinationAddress, ID):
         # 1. Build ICMP header
+        destinationAddress = socket.gethostbyname(destinationAddress)
+        checksumICMP = 0
+
+        header = struct.pack("bbHHh", 8, 0, checksumICMP, ID, 1)
+        data = struct.pack("d", time.time())
+
         # 2. Checksum ICMP packet using given function
+        checksumICMP = NetworkApplication.checksum(header + data)
+        
+        if sys.platform == "darwin":
+            checksumICMP = socket.htons(checksumICMP) & 0xffff
+        else:
+            checksumICMP = socket.htons(checksumICMP)
+
         # 3. Insert checksum into packet
+        header = struct.pack("bbHHh", 8, 0, checksumICMP, ID, 1)
+        packet = header + data
+
         # 4. Send packet using socket
+
+        icmpSocket.sendto(packet, (destinationAddress,1))
         # 5. Record time of sending
         pass
 
     def doOnePing(self, destinationAddress, timeout):
         # 1. Create ICMP socket
+        icmp = socket.getprotobyname("icmp")
+        icmpSocket = socket(socket.AF_INET, socket.SOCK_RAW, icmp)
         # 2. Call sendOnePing function
+        myID = os.getpid() & 0xffff
+        self.sendOnePing(icmpSocket, destinationAddress, myID)
         # 3. Call receiveOnePing function
+        delay = self.receiveOnePing(icmpSocket, myID, destinationAddress, timeout)
         # 4. Close ICMP socket
+        icmpSocket.close()
         # 5. Return total network delay
+        return delay
         pass
 
     def __init__(self, args):
         print('Ping to: %s...' % (args.hostname))
         # 1. Look up hostname, resolving it to an IP address
+        target_ip = socket.gethostbyname(args.hostname)
         # 2. Call doOnePing function, approximately every second
+        while True:
+            self.doOnePing(args.hostname, 1)
+            time.sleep(1)
         # 3. Print out the returned delay (and other relevant details) using the printOneResult method
         self.printOneResult('1.1.1.1', 50, 20.0, 150) # Example use of printOneResult - complete as appropriate
         # 4. Continue this process until stopped
