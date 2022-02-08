@@ -140,7 +140,7 @@ class ICMPPing(NetworkApplication):
         data = struct.pack("d", time.time())
 
         # 2. Checksum ICMP packet using given function
-        checksumICMP = self.checksum(header + data)
+        checksumICMP = self.checksum(header+data)
 
         # 3. Insert checksum into packet
         header = struct.pack("bbHHh", 8, 0, checksumICMP, ID, 1)
@@ -157,10 +157,10 @@ class ICMPPing(NetworkApplication):
         icmp = socket.getprotobyname("icmp")
         icmpSocket = socket.socket(socket.AF_INET, socket.SOCK_RAW, icmp)
         # 2. Call sendOnePing function
-        myID = os.getpid() & 0xffff
-        self.sendOnePing(icmpSocket, destinationAddress, myID)
+        ID = os.getpid() & 0xffff
+        self.sendOnePing(icmpSocket, destinationAddress, ID)
         # 3. Call receiveOnePing function
-        delay = self.receiveOnePing(icmpSocket, destinationAddress, myID, timeout)
+        delay = self.receiveOnePing(icmpSocket, destinationAddress, ID, timeout)
         # 4. Close ICMP socket
         icmpSocket.close()
         # 5. Return total network delay
@@ -188,9 +188,44 @@ class Traceroute(NetworkApplication): # provides a map of how data on the intern
     # and every router involved in transferring the data gets these packets. 
     # The ICMP packets provide information about whether the routers used in the transmission are able to effectively transfer the data.
 
+    # This is the thing that we send along the traceroute
+    def createHeader(self): 
+        
+        # 1. Just like in our sendPing, we create a packet with a header
+        checksumTrc = 0
+        ID = os.getpid() & 0xFFFF   #get the process ID of the current process
+
+        header = struct.pack("bbHHh", 8, 0, checksumTrc, ID, 1)
+        data = struct.pack("d", time.time())
+
+        # 2. Checksum Traceroute packet using given function
+        checksumTrc = self.checksum(header+data)
+
+        # 3. Insert checksum into packet
+        header = struct.pack("bbHHh", 8, 0, checksumTrc, ID, 1)
+        packet = header + data
+        
+        # 4. Return packet
+        return packet
+
+    # This is the route that we send the packet to
+    def createRoute():
+
+        pass
+
     def __init__(self, args):
-        # Please ensure you print each result using the printOneResult method!
+
+        # 1. Please ensure you print each result using the printOneResult method!
         print('Traceroute to: %s...' % (args.hostname))
+
+        # 2. Look up hostname, resolving it to an IP address
+        target_ip = socket.gethostbyname(args.hostname)
+
+        # 3. Call doOnePing function, approximately every second
+        while True:
+            #call get route
+            time.sleep(1)
+
 
 
 class WebServer(NetworkApplication):
