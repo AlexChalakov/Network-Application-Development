@@ -6,6 +6,7 @@ import socket
 import os
 import sys
 import struct
+from tabnanny import check
 import time
 
 import select   #additional needed import
@@ -183,8 +184,7 @@ class ICMPPing(NetworkApplication):
             time.sleep(1)
         # 3. Print out the returned delay (and other relevant details) using the printOneResult method
             self.printOneResult(args.hostname, 50, delay, 60)
-        
-        # 4. Continue this process until stopped
+
 
 
 class Traceroute(NetworkApplication): # provides a map of how data on the internet travels from its source to its destination. 
@@ -199,24 +199,19 @@ class Traceroute(NetworkApplication): # provides a map of how data on the intern
         timeLeft = timeout
 
         while True: #while waiting for packet
-            #selectStart = time.time()   #start time
-            #selectedTime = (time.time() - selectStart) #after the time left, we get the overall time minus the start time
 
+            #selectStart = time.time()   #start time
             inputReady = select.select([icmpSocket], [], [], timeLeft)  #putting the time left into the equation
+            #selectedTime = (time.time() - selectStart) #after the time left, we get the overall time minus the start time
 
             if inputReady[0] == []:
                 return "Timeout"
             else:
                 recordReceipt, address = icmpSocket.recvfrom(1024)
 
-                if address[0] == destAddr:
-                    icmpSocket.close()
-                    return address[0], True
-                else:
-                    icmpSocket.close()
-                    return address[0], True
+                icmpSocket.close()
+                return address[0], True
 
-        pass
 
     # This is the thing that we send along the traceroute
     def createHeader(self): 
@@ -239,7 +234,7 @@ class Traceroute(NetworkApplication): # provides a map of how data on the intern
         return packet
 
     # This is the route that we send the packet to
-    def createRoute(targetIP, timeout):
+    def createRoute(self, targetIP, timeout):
         timeLeft = timeout
 
         ipTTL = 1 #initiliase the ttl at 1 for the start
@@ -248,6 +243,8 @@ class Traceroute(NetworkApplication): # provides a map of how data on the intern
 
         while tempIP != destAddr and ipTTL <= 32: #until the temp address and the dest address match and there are no more than 32 hops, loop
             
+            delays = []
+
             #Getting the sockets ready
             #Using the ICMP instead of the UDP, so we force the traceroute to do that
             icmp = socket.getprotobyname("icmp")
@@ -258,24 +255,34 @@ class Traceroute(NetworkApplication): # provides a map of how data on the intern
             startTime = time.time()
             d = self.createHeader()
 
+            icmpSocket.sendto(d, (destAddr, 0))
+            tempIP, check = self.receiveIP(destAddr)
+            receiveTime = time.time()
+
+            if check:
+                delays.append(
+                    str((receiveTime - startTime)*1000))
+            elif check is False:
+                delays.append('*')
+        
+        if check:
+            if destAddr == tempIP:
+                print(ipTTL, tempIP, delays[0], delays[1], delays[2])
+                icmpSocket.close()
+
+        ipTTL += 1
+
          
-
-
-
-
     def __init__(self, args):
-
-        # 1. Please ensure you print each result using the printOneResult method!
-        print('Traceroute to: %s...' % (args.hostname))
-
-        # 2. Look up hostname, resolving it to an IP address
-        target_ip = socket.gethostbyname(args.hostname)
-
-        # 3. Call doOnePing function, approximately every second
+        print('Ping to: %s...' % (args.hostname))
+        # 1. Look up hostname, resolving it to an IP address
+        destAddr = socket.gethostbyname(args.hostname)
+        # 2. Call doOnePing function, approximately every second
         while True:
-            #call get route
+            self.createRoute(destAddr, 1)
             time.sleep(1)
-
+        # 3. Print out the returned delay (and other relevant details) using the printOneResult method
+            #self.printOneResult(args.hostname, 50, delay, 60)
 
 
 class WebServer(NetworkApplication):
