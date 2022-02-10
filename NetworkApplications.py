@@ -6,7 +6,6 @@ import socket
 import os
 import sys
 import struct
-from tabnanny import check
 import time
 
 import select   #additional needed import
@@ -109,6 +108,7 @@ class ICMPPing(NetworkApplication):
                 return "Timeout"
 
             timeReceived = time.time()
+            #print(timeReceived)
             recordReceipt, address = icmpSocket.recvfrom(1024)
 
         # 3. Compare the time of receipt to time of sending, producing the total network delay
@@ -119,13 +119,13 @@ class ICMPPing(NetworkApplication):
         # 5. Check that the ID matches between the request and reply
         # 6. Return total network delay
             if type != 8 and icmpId == ID:
-                bytesDouble = struct.calcsize("d")
-                timeSent = struct.unpack("d", recordReceipt[28:28 + bytesDouble])[0]
-                networkDelay = timeReceived - timeSent
-                return networkDelay
+                #bytesDouble = struct.calcsize("d")
+                #timeSent = struct.unpack("d", recordReceipt[28:28 + bytesDouble])[0]
+                #networkDelay = timeReceived - timeSent
+                return timeReceived
+
 
             timeLeft -= selectTime
-
             if timeLeft <= 0:
                 return "Timeout"
 
@@ -147,9 +147,12 @@ class ICMPPing(NetworkApplication):
         packet = header + data
 
         # 4. Send packet using socket
-
         icmpSocket.sendto(packet, (destinationAddress,1))
+
         # 5. Record time of sending
+        timeSent = time.time()
+        #print(timeSent)
+        return timeSent
         pass
 
     def doOnePing(self, destinationAddress, timeout):
@@ -157,27 +160,29 @@ class ICMPPing(NetworkApplication):
         icmp = socket.getprotobyname("icmp")
         icmpSocket = socket.socket(socket.AF_INET, socket.SOCK_RAW, icmp)
         # 2. Call sendOnePing function
-        ID = os.getpid() & 0xffff
-        self.sendOnePing(icmpSocket, destinationAddress, ID)
+        ID = os.getpid() & 0xffff #get the process ID of the current process
+        timeSent = self.sendOnePing(icmpSocket, destinationAddress, ID)
         # 3. Call receiveOnePing function
-        delay = self.receiveOnePing(icmpSocket, destinationAddress, ID, timeout)
+        timeReceived = self.receiveOnePing(icmpSocket, destinationAddress, ID, timeout)
         # 4. Close ICMP socket
         icmpSocket.close()
         # 5. Return total network delay
+        delay = timeReceived - timeSent
+        delay = delay * 1000
+        #print(delay)
         return delay
         pass
 
     def __init__(self, args):
         print('Ping to: %s...' % (args.hostname))
         # 1. Look up hostname, resolving it to an IP address
-        target_ip = socket.gethostbyname(args.hostname)
+        destAddr = socket.gethostbyname(args.hostname)
         # 2. Call doOnePing function, approximately every second
         while True:
-            #delay = self.doOnePing(args.hostname, 1)
-            self.doOnePing(args.hostname, 1)
+            delay = self.doOnePing(destAddr, 1)
             time.sleep(1)
         # 3. Print out the returned delay (and other relevant details) using the printOneResult method
-            self.printOneResult('1.1.1.1', 50, 20.0, 150)
+            self.printOneResult(args.hostname, 50, delay, 60)
         
         # 4. Continue this process until stopped
 
@@ -187,6 +192,31 @@ class Traceroute(NetworkApplication): # provides a map of how data on the intern
     # A traceroute works by sending Internet Control Message Protocol (ICMP) packets, 
     # and every router involved in transferring the data gets these packets. 
     # The ICMP packets provide information about whether the routers used in the transmission are able to effectively transfer the data.
+
+    # Our receive function with which we catch the signal
+    def receiveIP(destAddr, icmpSocket, timeout):
+
+        timeLeft = timeout
+
+        while True: #while waiting for packet
+            #selectStart = time.time()   #start time
+            #selectedTime = (time.time() - selectStart) #after the time left, we get the overall time minus the start time
+
+            inputReady = select.select([icmpSocket], [], [], timeLeft)  #putting the time left into the equation
+
+            if inputReady[0] == []:
+                return "Timeout"
+            else:
+                recordReceipt, address = icmpSocket.recvfrom(1024)
+
+                if address[0] == destAddr:
+                    icmpSocket.close()
+                    return address[0], True
+                else:
+                    icmpSocket.close()
+                    return address[0], True
+
+        pass
 
     # This is the thing that we send along the traceroute
     def createHeader(self): 
@@ -209,9 +239,29 @@ class Traceroute(NetworkApplication): # provides a map of how data on the intern
         return packet
 
     # This is the route that we send the packet to
-    def createRoute():
+    def createRoute(targetIP, timeout):
+        timeLeft = timeout
 
-        pass
+        ipTTL = 1 #initiliase the ttl at 1 for the start
+        tempIP = '' #store all the ips we pass through
+        destAddr = socket.gethostbyname(targetIP) #get the destination address from the traceroute command
+
+        while tempIP != destAddr and ipTTL <= 32: #until the temp address and the dest address match and there are no more than 32 hops, loop
+            
+            #Getting the sockets ready
+            #Using the ICMP instead of the UDP, so we force the traceroute to do that
+            icmp = socket.getprotobyname("icmp")
+            icmpSocket = socket.socket(socket.AF_INET, socket.SOCK_RAW, icmp)
+            icmpSocket.setsockopt(socket.IPPROTO_TCP, socket.IP_TTL, struct.pack('I', ipTTL)) #'I' command for ICMP
+            icmpSocket.settimeout(timeLeft)
+
+            startTime = time.time()
+            d = self.createHeader()
+
+         
+
+
+
 
     def __init__(self, args):
 
