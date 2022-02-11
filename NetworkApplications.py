@@ -92,6 +92,8 @@ class NetworkApplication:
         if minimumDelay > 0 and averageDelay > 0 and maximumDelay > 0:
             print("rtt min/avg/max = %.2f/%.2f/%.2f ms" % (minimumDelay, averageDelay, maximumDelay))
 
+    #def printTraceroute (self, ttl: int, destinationAddress: str, time1: float, time2: float, time3: float):
+         #print("%d , %s , %.2f , %.2f , %.2f" % (ttl, destinationAddress, time1, time2, time3))
 
 class ICMPPing(NetworkApplication):
 
@@ -186,7 +188,6 @@ class ICMPPing(NetworkApplication):
             self.printOneResult(args.hostname, 50, delay, 60)
 
 
-
 class Traceroute(NetworkApplication): # provides a map of how data on the internet travels from its source to its destination. 
 
     # A traceroute works by sending Internet Control Message Protocol (ICMP) packets, 
@@ -194,7 +195,7 @@ class Traceroute(NetworkApplication): # provides a map of how data on the intern
     # The ICMP packets provide information about whether the routers used in the transmission are able to effectively transfer the data.
 
     # Our receive function with which we catch the signal
-    def receiveIP(destAddr, icmpSocket, timeout):
+    def receiveIP(self, destAddr, icmpSocket, timeout):
 
         timeLeft = timeout
 
@@ -205,7 +206,7 @@ class Traceroute(NetworkApplication): # provides a map of how data on the intern
             #selectedTime = (time.time() - selectStart) #after the time left, we get the overall time minus the start time
 
             if inputReady[0] == []:
-                return "Timeout"
+                return "Timeout", False
             else:
                 recordReceipt, address = icmpSocket.recvfrom(1024)
 
@@ -243,38 +244,58 @@ class Traceroute(NetworkApplication): # provides a map of how data on the intern
 
         while tempIP != destAddr and ipTTL <= 32: #until the temp address and the dest address match and there are no more than 32 hops, loop
             
-            delays = []
+            multipleDelays = [] #for the multiple delays as in the unix command traceroute
 
-            #Getting the sockets ready
-            #Using the ICMP instead of the UDP, so we force the traceroute to do that
-            icmp = socket.getprotobyname("icmp")
-            icmpSocket = socket.socket(socket.AF_INET, socket.SOCK_RAW, icmp)
-            icmpSocket.setsockopt(socket.IPPROTO_TCP, socket.IP_TTL, struct.pack('I', ipTTL)) #'I' command for ICMP
-            icmpSocket.settimeout(timeLeft)
+            for i in range(3):
+                #Getting the sockets ready
+                #Using the ICMP instead of the UDP, so we force the traceroute to do that
+                icmp = socket.getprotobyname("icmp")
+                icmpSocket = socket.socket(socket.AF_INET, socket.SOCK_RAW, icmp)
+                icmpSocket.setsockopt(socket.SOL_IP, socket.IP_TTL, ipTTL) #'I' command for ICMP
+                icmpSocket.settimeout(timeLeft)
 
-            startTime = time.time()
-            d = self.createHeader()
+                startTime = time.time() #start timer
+                d = self.createHeader() #calling our header method, which gives us everything for sending signal
 
-            icmpSocket.sendto(d, (destAddr, 0))
-            tempIP, check = self.receiveIP(destAddr)
-            receiveTime = time.time()
+                icmpSocket.sendto(d, (destAddr, 0)) #sending packet
+                tempIP, check = self.receiveIP(destAddr,icmpSocket, 1) #calling receiving function and receiving the destination address
+                receiveTime = time.time() #received timer
 
-            if check:
-                delays.append(
-                    str((receiveTime - startTime)*1000))
+                if check: #checking for delays
+                    answer = receiveTime - startTime
+                    answer = answer * 1000
+                    multipleDelays.append( #appending
+                        #str((receiveTime - startTime)*1000)) #calculating
+                        str(round(answer, 2)))
+                elif check is False:
+                    multipleDelays.append('*')
+
+            if check: #checking again
+                if destAddr == tempIP:
+                    print(ipTTL, tempIP, multipleDelays[0], multipleDelays[1], multipleDelays[2])
+                    print("FOUND ADDRESS")
+                    icmpSocket.close()
+                elif ipTTL > 32:
+                    print(ipTTL, tempIP, multipleDelays[0], multipleDelays[1], multipleDelays[2])
+                    icmpSocket.close()
+                    break
+                else:
+                    print("ELSE")
+                    print(ipTTL, tempIP , multipleDelays[0], multipleDelays[1], multipleDelays[2])
             elif check is False:
-                delays.append('*')
-        
-        if check:
-            if destAddr == tempIP:
-                print(ipTTL, tempIP, delays[0], delays[1], delays[2])
-                icmpSocket.close()
+                if ipTTL < 32:
+                    print(ipTTL, tempIP, multipleDelays[0], multipleDelays[1], multipleDelays[2])
+                elif ipTTL >= 32:
+                    print(ipTTL, tempIP, multipleDelays[0], multipleDelays[1], multipleDelays[2])
+                    icmpSocket.close()
+                    break
+                
 
-        ipTTL += 1
+            ipTTL = ipTTL + 1 #incrementing ttl with 1
 
          
     def __init__(self, args):
-        print('Ping to: %s...' % (args.hostname))
+        print('Tracerouting to: %s...' % (args.hostname))
         # 1. Look up hostname, resolving it to an IP address
         destAddr = socket.gethostbyname(args.hostname)
         # 2. Call doOnePing function, approximately every second
