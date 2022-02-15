@@ -297,9 +297,8 @@ class Traceroute(NetworkApplication): # provides a map of how data on the intern
         # 1. Look up hostname, resolving it to an IP address
         destAddr = socket.gethostbyname(args.hostname)
         # 2. Call createRoute function, approximately every second
-        while True:
-            self.createRoute(destAddr, 1)
-            time.sleep(1)
+        self.createRoute(destAddr, 1)
+        time.sleep(1)
 
 
 class WebServer(NetworkApplication):
