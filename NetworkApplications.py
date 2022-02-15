@@ -6,7 +6,6 @@ import socket
 import os
 import sys
 import struct
-from tabnanny import check
 import time
 
 import select   #additional needed import
@@ -106,7 +105,6 @@ class ICMPPing(NetworkApplication):
             selectTime = (time.time() - selectStart) #after the time left, we get the overall time minus the start time
 
         # 2. Once received, record time of receipt, otherwise, handle a timeout
-            
             if inputReady[0] == []:
                 return "Timeout"
 
@@ -194,7 +192,7 @@ class Traceroute(NetworkApplication): # provides a map of how data on the intern
     # and every router involved in transferring the data gets these packets. 
     # The ICMP packets provide information about whether the routers used in the transmission are able to effectively transfer the data.
 
-    # Our receive function with which we catch the signal
+    # Our receive function with which we catch the signal, following the structure of the receiveOnePing method
     def receiveIP(self, destAddr, icmpSocket, timeout):
 
         timeLeft = timeout
@@ -214,7 +212,7 @@ class Traceroute(NetworkApplication): # provides a map of how data on the intern
                 return address[0], True
 
 
-    # This is the thing that we send along the traceroute
+    # This is the thing that we send along the traceroute, following the structure of the sendOnePing method
     def createHeader(self): 
         
         # 1. Just like in our sendPing, we create a packet with a header
@@ -241,9 +239,11 @@ class Traceroute(NetworkApplication): # provides a map of how data on the intern
         ipTTL = 1 #initiliase the ttl at 1 for the start
         tempIP = '' #store all the ips we pass through
         destAddr = socket.gethostbyname(targetIP) #get the destination address from the traceroute command
+        #print(destAddr)
 
-        while tempIP != destAddr and ipTTL <= 32: #until the temp address and the dest address match and there are no more than 32 hops, loop
-            
+        #while tempIP != destAddr and ipTTL <= 32: #until the temp address and the dest address match and there are no more than 32 hops, loop
+        for ipTTL in range(1, 32):
+            #print(tempIP)
             multipleDelays = [] #for the multiple delays as in the unix command traceroute
 
             for i in range(3):
@@ -258,31 +258,30 @@ class Traceroute(NetworkApplication): # provides a map of how data on the intern
                 d = self.createHeader() #calling our header method, which gives us everything for sending signal
 
                 icmpSocket.sendto(d, (destAddr, 0)) #sending packet
-                tempIP, check = self.receiveIP(destAddr,icmpSocket, 1) #calling receiving function and receiving the destination address
+                tempIP, trcBoolean = self.receiveIP(destAddr,icmpSocket, 1) #calling receiving function and receiving the destination address
                 receiveTime = time.time() #received timer
 
-                if check: #checking for delays
+                if trcBoolean: #checking for delays
                     answer = receiveTime - startTime
                     answer = answer * 1000
                     multipleDelays.append( #appending
-                        #str((receiveTime - startTime)*1000)) #calculating
                         str(round(answer, 2)))
-                elif check is False:
+                elif trcBoolean is False:
                     multipleDelays.append('*')
 
-            if check: #checking again
+            if trcBoolean: #checking again
                 if destAddr == tempIP:
                     print(ipTTL, tempIP, multipleDelays[0], multipleDelays[1], multipleDelays[2])
                     print("FOUND ADDRESS")
                     icmpSocket.close()
+                    break
                 elif ipTTL > 32:
                     print(ipTTL, tempIP, multipleDelays[0], multipleDelays[1], multipleDelays[2])
                     icmpSocket.close()
                     break
                 else:
-                    print("ELSE")
                     print(ipTTL, tempIP , multipleDelays[0], multipleDelays[1], multipleDelays[2])
-            elif check is False:
+            elif trcBoolean is False:
                 if ipTTL < 32:
                     print(ipTTL, tempIP, multipleDelays[0], multipleDelays[1], multipleDelays[2])
                 elif ipTTL >= 32:
@@ -290,7 +289,6 @@ class Traceroute(NetworkApplication): # provides a map of how data on the intern
                     icmpSocket.close()
                     break
                 
-
             ipTTL = ipTTL + 1 #incrementing ttl with 1
 
          
@@ -298,12 +296,10 @@ class Traceroute(NetworkApplication): # provides a map of how data on the intern
         print('Tracerouting to: %s...' % (args.hostname))
         # 1. Look up hostname, resolving it to an IP address
         destAddr = socket.gethostbyname(args.hostname)
-        # 2. Call doOnePing function, approximately every second
+        # 2. Call createRoute function, approximately every second
         while True:
             self.createRoute(destAddr, 1)
             time.sleep(1)
-        # 3. Print out the returned delay (and other relevant details) using the printOneResult method
-            #self.printOneResult(args.hostname, 50, delay, 60)
 
 
 class WebServer(NetworkApplication):
@@ -321,9 +317,17 @@ class WebServer(NetworkApplication):
     def __init__(self, args):
         print('Web Server starting on port: %i...' % (args.port))
         # 1. Create server socket
+        serverPort = args.port
+        serverSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         # 2. Bind the server socket to server address and server port
+        serverSocket.bind(('', serverPort))
+        print('Web Server starting on port: %i...' % (serverPort))
         # 3. Continuously listen for connections to server socket
+        serverSocket.listen(1)
         # 4. When a connection is accepted, call handleRequest function, passing new connection socket (see https://docs.python.org/3/library/socket.html#socket.socket.accept)
+        while True:
+            print("Ready to listen:")
+            #connectionSocket, addr = serverSocket.accept()
         # 5. Close server socket
 
 
