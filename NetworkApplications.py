@@ -96,7 +96,7 @@ class NetworkApplication:
 
 class ICMPPing(NetworkApplication):
 
-    def receiveOnePing(self, icmpSocket, destinationAddress, ID, timeout):
+    def receiveOnePing(self, icmpSocket, destinAddress, ID, timeout):
         # 1. Wait for the socket to receive a reply
         timeLeft = timeout
         while True: #while waiting for packet
@@ -118,11 +118,8 @@ class ICMPPing(NetworkApplication):
             icmpType, icmpCode, icmpChecksum, icmpId, icmpSequence = struct.unpack("bbHHh", icmpHeader)
 
         # 5. Check that the ID matches between the request and reply
-        # 6. Return total network delay
+        # 6. Return time received
             if type != 8 and icmpId == ID:
-                #bytesDouble = struct.calcsize("d")
-                #timeSent = struct.unpack("d", recordReceipt[28:28 + bytesDouble])[0]
-                #networkDelay = timeReceived - timeSent
                 return timeReceived
 
 
@@ -132,9 +129,9 @@ class ICMPPing(NetworkApplication):
 
         pass
 
-    def sendOnePing(self, icmpSocket, destinationAddress, ID):
+    def sendOnePing(self, icmpSocket, destinAddress, ID):
         # 1. Build ICMP header
-        destinationAddress = socket.gethostbyname(destinationAddress)
+        destinAddress = socket.gethostbyname(destinAddress)
         checksumICMP = 0
 
         header = struct.pack("bbHHh", 8, 0, checksumICMP, ID, 1)
@@ -148,7 +145,7 @@ class ICMPPing(NetworkApplication):
         packet = header + data
 
         # 4. Send packet using socket
-        icmpSocket.sendto(packet, (destinationAddress,1))
+        icmpSocket.sendto(packet, (destinAddress,1))
 
         # 5. Record time of sending
         timeSent = time.time()
@@ -156,17 +153,21 @@ class ICMPPing(NetworkApplication):
         return timeSent
         pass
 
-    def doOnePing(self, destinationAddress, timeout):
+    def doOnePing(self, destinAddress, timeout):
         # 1. Create ICMP socket
         icmp = socket.getprotobyname("icmp")
         icmpSocket = socket.socket(socket.AF_INET, socket.SOCK_RAW, icmp)
+
         # 2. Call sendOnePing function
         ID = os.getpid() & 0xffff #get the process ID of the current process
-        timeSent = self.sendOnePing(icmpSocket, destinationAddress, ID)
+        timeSent = self.sendOnePing(icmpSocket, destinAddress, ID)
+
         # 3. Call receiveOnePing function
-        timeReceived = self.receiveOnePing(icmpSocket, destinationAddress, ID, timeout)
+        timeReceived = self.receiveOnePing(icmpSocket, destinAddress, ID, timeout)
+
         # 4. Close ICMP socket
         icmpSocket.close()
+
         # 5. Return total network delay
         delay = timeReceived - timeSent
         delay = delay * 1000
@@ -178,10 +179,12 @@ class ICMPPing(NetworkApplication):
         print('Ping to: %s...' % (args.hostname))
         # 1. Look up hostname, resolving it to an IP address
         destAddr = socket.gethostbyname(args.hostname)
+
         # 2. Call doOnePing function, approximately every second
         while True:
             delay = self.doOnePing(destAddr, 1)
             time.sleep(1)
+
         # 3. Print out the returned delay (and other relevant details) using the printOneResult method
             self.printOneResult(args.hostname, 50, delay, 60)
 
@@ -296,6 +299,7 @@ class Traceroute(NetworkApplication): # provides a map of how data on the intern
         print('Tracerouting to: %s...' % (args.hostname))
         # 1. Look up hostname, resolving it to an IP address
         destAddr = socket.gethostbyname(args.hostname)
+
         # 2. Call createRoute function, approximately every second
         self.createRoute(destAddr, 1)
         time.sleep(1)
@@ -303,14 +307,28 @@ class Traceroute(NetworkApplication): # provides a map of how data on the intern
 
 class WebServer(NetworkApplication):
 
-    def handleRequest(tcpSocket):
+    def handleRequest(self, tcpSocket):
         # 1. Receive request message from the client on connection socket
+        reqMessage = tcpSocket.recv(1024)
+
         # 2. Extract the path of the requested object from the message (second part of the HTTP header)
+        print(reqMessage)
+        reqMessage = reqMessage.decode('utf-8')
+        file = reqMessage.split()[1]
+
         # 3. Read the corresponding file from disk
         # 4. Store in temporary buffer
+        fileOpen = open(file[1:])
+        readingFile = fileOpen.read()
+
         # 5. Send the correct HTTP response error
+        tcpSocket.send(bytes("HTTP/1.1 200 OK\r\n\r\n","utf-8"))
+
         # 6. Send the content of the file to the socket
+        tcpSocket.send(bytes(readingFile, "utf-8"))
+
         # 7. Close the connection socket
+        tcpSocket.close()
         pass
 
     def __init__(self, args):
@@ -318,16 +336,22 @@ class WebServer(NetworkApplication):
         # 1. Create server socket
         serverPort = args.port
         serverSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
         # 2. Bind the server socket to server address and server port
         serverSocket.bind(('', serverPort))
         print('Web Server starting on port: %i...' % (serverPort))
+
         # 3. Continuously listen for connections to server socket
         serverSocket.listen(1)
+
         # 4. When a connection is accepted, call handleRequest function, passing new connection socket (see https://docs.python.org/3/library/socket.html#socket.socket.accept)
         while True:
             print("Ready to listen:")
-            #connectionSocket, addr = serverSocket.accept()
+            connectionSocket, addr = serverSocket.accept()
+            self.handleRequest(connectionSocket)
+
         # 5. Close server socket
+            serverSocket.close()
 
 
 class Proxy(NetworkApplication):
