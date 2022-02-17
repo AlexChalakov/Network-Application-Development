@@ -308,28 +308,35 @@ class Traceroute(NetworkApplication): # provides a map of how data on the intern
 class WebServer(NetworkApplication):
 
     def handleRequest(self, tcpSocket):
-        # 1. Receive request message from the client on connection socket
-        reqMessage = tcpSocket.recv(1024)
+        try:
+            # 1. Receive request message from the client on connection socket
+            reqMessage = tcpSocket.recv(1024)
 
-        # 2. Extract the path of the requested object from the message (second part of the HTTP header)
-        print(reqMessage)
-        reqMessage = reqMessage.decode('utf-8')
-        file = reqMessage.split()[1]
+            # 2. Extract the path of the requested object from the message (second part of the HTTP header)
+            print(reqMessage)
+            reqMessage = reqMessage.decode('utf-8')
+            file = reqMessage.split()[1]
 
-        # 3. Read the corresponding file from disk
-        # 4. Store in temporary buffer
-        fileOpen = open(file[1:])
-        readingFile = fileOpen.read()
+            print(reqMessage)
+            # 3. Read the corresponding file from disk
+            # 4. Store in temporary buffer
+            fileOpen = open(file[1:])
+            readingFile = fileOpen.read()
 
-        # 5. Send the correct HTTP response error
-        tcpSocket.send(bytes("HTTP/1.1 200 OK\r\n\r\n","utf-8"))
+            # 5. Send the correct HTTP response error
+            tcpSocket.send(bytes("HTTP/1.1 200 OK\r\n\r\n","utf-8"))
 
-        # 6. Send the content of the file to the socket
-        tcpSocket.send(bytes(readingFile, "utf-8"))
+            # 6. Send the content of the file to the socket
+            tcpSocket.send(bytes(readingFile, "utf-8"))
+            fileOpen.close()
 
-        # 7. Close the connection socket
-        tcpSocket.close()
-        pass
+            # 7. Close the connection socket
+            tcpSocket.close()
+        
+        except IOError:
+            pass
+            tcpSocket.send(bytes("HTTP/1.1 404 Not Found \r\n\r\n","utf-8"))
+            print("Error 404: FILE NOT FOUND")
 
     def __init__(self, args):
         print('Web Server starting on port: %i...' % (args.port))
@@ -338,8 +345,7 @@ class WebServer(NetworkApplication):
         serverSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
         # 2. Bind the server socket to server address and server port
-        serverSocket.bind(('', serverPort))
-        print('Web Server starting on port: %i...' % (serverPort))
+        serverSocket.bind(("127.0.0.1", serverPort))
 
         # 3. Continuously listen for connections to server socket
         serverSocket.listen(1)
@@ -351,7 +357,7 @@ class WebServer(NetworkApplication):
             self.handleRequest(connectionSocket)
 
         # 5. Close server socket
-            serverSocket.close()
+        serverSocket.close()
 
 
 class Proxy(NetworkApplication):
