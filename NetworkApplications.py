@@ -364,6 +364,23 @@ class Proxy(NetworkApplication):
 
     def __init__(self, args):
         print('Web Proxy starting on port: %i...' % (args.port))
+        # 1. Create server socket
+        serverPort = args.port
+        serverSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+        # 2. Bind the server socket to server address and server port
+        serverSocket.bind(("127.0.0.1", serverPort))
+
+        # 3. Continuously listen for connections to server socket
+        serverSocket.listen(1)
+
+        # 4. When a connection is accepted, call handleRequest function, passing new connection socket (see https://docs.python.org/3/library/socket.html#socket.socket.accept)
+        while True:
+            print("Ready to listen:")
+            connectionSocket, addr = serverSocket.accept()
+
+        # 5. Close server socket
+        serverSocket.close()
 
 
 if __name__ == "__main__":
