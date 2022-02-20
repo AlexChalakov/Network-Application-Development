@@ -2,6 +2,7 @@
 # -*- coding: UTF-8 -*-
 
 import argparse
+from audioop import add
 import socket
 import os
 import sys
@@ -9,6 +10,7 @@ import struct
 import time
 
 import select   #additional needed import
+import threading #additional for proxy and additional task web server
 
 
 def setupArgumentParser() -> argparse.Namespace:
@@ -313,11 +315,11 @@ class WebServer(NetworkApplication):
             reqMessage = tcpSocket.recv(1024)
 
             # 2. Extract the path of the requested object from the message (second part of the HTTP header)
-            print(reqMessage)
+            #print(reqMessage)
             reqMessage = reqMessage.decode('utf-8')
             file = reqMessage.split()[1]
 
-            print(reqMessage)
+            #print(reqMessage)
             # 3. Read the corresponding file from disk
             # 4. Store in temporary buffer
             fileOpen = open(file[1:])
@@ -367,6 +369,7 @@ class Proxy(NetworkApplication):
         # 1. Create server socket
         serverPort = args.port
         serverSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        serverSocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) # making the socket reusable
 
         # 2. Bind the server socket to server address and server port
         serverSocket.bind(("127.0.0.1", serverPort))
@@ -374,13 +377,35 @@ class Proxy(NetworkApplication):
         # 3. Continuously listen for connections to server socket
         serverSocket.listen(1)
 
-        # 4. When a connection is accepted, call handleRequest function, passing new connection socket (see https://docs.python.org/3/library/socket.html#socket.socket.accept)
+        # 4. When a connection is accepted, call handleProxy function, creating our Web Proxy 
         while True:
             print("Ready to listen:")
-            connectionSocket, addr = serverSocket.accept()
+            connectionSocket, connectionAddr = serverSocket.accept() # accepting connections
 
+            thread = threading.Thread(target=self.handleProxy, args=(connectionSocket, connectionAddr)) # making the threads and initiating the proxy
+            thread.setDaemon(True)
+            thread.start()
         # 5. Close server socket
         serverSocket.close()
+
+    def handleProxy(self, tcpSocket, tcpAddress):
+
+        # 1. Receive request message from the client on connection socket
+        reqMessage = tcpSocket.recv(1024)
+        reqMessage = reqMessage.decode('utf-8')
+        #print(reqMessage)
+
+        # 2. Extracting the needed things of the requested object from the message
+        type = reqMessage.split('\n')[0] #messageLines - first line
+        url = type.split(' ')[1]
+
+        #print(type)
+        #print(url)
+
+
+
+        # Final step. Close the socket
+        tcpSocket.close()
 
 
 if __name__ == "__main__":
