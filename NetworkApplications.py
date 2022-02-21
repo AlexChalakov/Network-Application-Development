@@ -391,20 +391,48 @@ class Proxy(NetworkApplication):
     def handleProxy(self, tcpSocket, tcpAddress):
 
         # 1. Receive request message from the client on connection socket
-        reqMessage = tcpSocket.recv(1024)
+        reqMessage = tcpSocket.recv(10000)
         reqMessage = reqMessage.decode('utf-8')
         #print(reqMessage)
 
         # 2. Extracting the needed things of the requested object from the message
-        type = reqMessage.split('\n')[0] #messageLines - first line
-        url = type.split(' ')[1]
+        type = reqMessage.split('\n')[0] #first line
+
+        host = reqMessage.split()[4].split(':')[0]
+
+        tcpAddress = socket.gethostbyname(host) #get the target address
 
         #print(type)
-        #print(url)
+        #print(host)
+        #print(tcpAddress)
 
+        # 3. Handle web server and send packet
 
+        try:
+            port = 80
+            newSocket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+            newSocket.connect((tcpAddress, port))
+            newSocket.send(bytes(reqMessage, "utf-8"))
+
+            while True:
+                receiveMessage = newSocket.recv(10000)
+                #print(receiveMessage)
+
+                if(len(receiveMessage) > 0): #putting boundaries on the receive message
+                    tcpSocket.sendall(receiveMessage)
+                else: 
+                    break
+
+        except socket.error:
+            if newSocket:
+                newSocket.close()
+            if tcpSocket:
+                tcpSocket.close()
+
+            sys.exit(1)
 
         # Final step. Close the socket
+        newSocket.close()
         tcpSocket.close()
 
 
