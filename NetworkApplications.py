@@ -212,7 +212,6 @@ class Traceroute(NetworkApplication): # provides a map of how data on the intern
                 return "Timeout", False
             else:
                 recordReceipt, address = icmpSocket.recvfrom(1024)
-
                 icmpSocket.close()
                 return address[0], True
 
@@ -395,33 +394,38 @@ class Proxy(NetworkApplication):
         reqMessage = reqMessage.decode('utf-8')
         #print(reqMessage)
 
-        # 2. Extracting the needed things of the requested object from the message
+        # 2. Extracting the needed things of the requested object from the message - read the text, create a url, read file whenever there is one 
         type = reqMessage.split('\n')[0] #first line
-
         host = reqMessage.split()[4].split(':')[0]
-
         tcpAddress = socket.gethostbyname(host) #get the target address
 
         #print(type)
         #print(host)
         #print(tcpAddress)
+        
 
         # 3. Handle web server and send packet
-
+        # except FileNotFoundError , if no file found, write on file
         try:
+            reply = b''
             port = 80
             newSocket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
             newSocket.connect((tcpAddress, port))
             newSocket.send(bytes(reqMessage, "utf-8"))
 
             while True:
-                receiveMessage = newSocket.recv(10000)
+                selectingSocket = select.select([newSocket],[],[],1) #if timeout 3 empty parameters appear
+                if selectingSocket[0]: #check if there is a timeout
+                    receiveMessage = newSocket.recv(10000)
+                    reply += receiveMessage
+                else:
+                    break
                 #print(receiveMessage)
 
-                if(len(receiveMessage) > 0): #putting boundaries on the receive message
-                    tcpSocket.sendall(receiveMessage)
-                else: 
-                    break
+            if(len(reply) > 0): #putting boundaries on the receive message
+                tcpSocket.sendall(reply)
+            else: 
+                return 
 
         except socket.error:
             if newSocket:
