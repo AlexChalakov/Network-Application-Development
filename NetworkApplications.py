@@ -2,7 +2,6 @@
 # -*- coding: UTF-8 -*-
 
 import argparse
-from audioop import add
 import socket
 import os
 import sys
@@ -93,8 +92,8 @@ class NetworkApplication:
         if minimumDelay > 0 and averageDelay > 0 and maximumDelay > 0:
             print("rtt min/avg/max = %.2f/%.2f/%.2f ms" % (minimumDelay, averageDelay, maximumDelay))
 
-    #def printTraceroute (self, ttl: int, destinationAddress: str, time1: float, time2: float, time3: float):
-         #print("%d , %s , %.2f , %.2f , %.2f" % (ttl, destinationAddress, time1, time2, time3))
+    def printTraceroute (self, ttl: int, destinationAddress: str, time1: float, time2: float, time3: float):
+        print(ttl, destinationAddress, time1, time2, time3)
 
 class ICMPPing(NetworkApplication):
 
@@ -245,7 +244,7 @@ class Traceroute(NetworkApplication): # provides a map of how data on the intern
         destAddr = socket.gethostbyname(targetIP) #get the destination address from the traceroute command
         #print(destAddr)
 
-        #while tempIP != destAddr and ipTTL <= 32: #until the temp address and the dest address match and there are no more than 32 hops, loop
+        #looping through all the 32 ttl hops, until we find the target address
         for ipTTL in range(1, 32):
             #print(tempIP)
             multipleDelays = [] #for the multiple delays as in the unix command traceroute
@@ -269,27 +268,27 @@ class Traceroute(NetworkApplication): # provides a map of how data on the intern
                     answer = receiveTime - startTime
                     answer = answer * 1000
                     multipleDelays.append( #appending
-                        str(round(answer, 2)))
+                        str(round(answer, 2)) + " ms")
                 elif trcBoolean is False:
                     multipleDelays.append('*')
 
             if trcBoolean: #checking again
                 if destAddr == tempIP:
-                    print(ipTTL, tempIP, multipleDelays[0], multipleDelays[1], multipleDelays[2])
+                    self.printTraceroute(ipTTL,tempIP,multipleDelays[0],multipleDelays[1],multipleDelays[2])
                     print("FOUND ADDRESS")
                     icmpSocket.close()
                     break
                 elif ipTTL > 32:
-                    print(ipTTL, tempIP, multipleDelays[0], multipleDelays[1], multipleDelays[2])
+                    self.printTraceroute(ipTTL,tempIP,multipleDelays[0],multipleDelays[1],multipleDelays[2])
                     icmpSocket.close()
                     break
                 else:
-                    print(ipTTL, tempIP , multipleDelays[0], multipleDelays[1], multipleDelays[2])
+                    self.printTraceroute(ipTTL,tempIP,multipleDelays[0],multipleDelays[1],multipleDelays[2])
             elif trcBoolean is False:
                 if ipTTL < 32:
-                    print(ipTTL, tempIP, multipleDelays[0], multipleDelays[1], multipleDelays[2])
+                    self.printTraceroute(ipTTL,tempIP,multipleDelays[0],multipleDelays[1],multipleDelays[2])
                 elif ipTTL >= 32:
-                    print(ipTTL, tempIP, multipleDelays[0], multipleDelays[1], multipleDelays[2])
+                    self.printTraceroute(ipTTL,tempIP,multipleDelays[0],multipleDelays[1],multipleDelays[2])
                     icmpSocket.close()
                     break
                 
@@ -398,44 +397,56 @@ class Proxy(NetworkApplication):
         type = reqMessage.split('\n')[0] #first line
         url = type.split(' ')[1] #the url is the name of the cache file
         urlName = url.strip('http://') #getting the host
+        urlNameDots = urlName.replace(".","_") #making it correct
         tcpAddress = socket.gethostbyname(urlName) #get the target address by getting the host
-
+        reply = b''
         #print(type)
         #print(tcpAddress)
         #print(url)
-        print(urlName)
-        #_neverssl_com
+        #print(urlName)
 
-        # 3. Handle web server and send packet
-        # except FileNotFoundError , if no file found, write on file
+        # 3. Caching, try to find the file if its been created
         try:
-            reply = b''
-            port = 80
-            newSocket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-            newSocket.connect((tcpAddress, port))
-            newSocket.send(bytes(reqMessage, "utf-8"))
+            handleFile = open(urlName, "r")
+            readFile = handleFile.read()
+            reply += readFile
+            tcpSocket.sendall(reply)
+            print("FILE READ")
+            # 4. Handle web server and send packet
+            # except FileNotFoundError , if no file found, write on file
+        except Exception as e:
+            try:
+                #reply = b''
+                port = 80
+                newSocket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+                newSocket.connect((tcpAddress, port))
+                newSocket.send(bytes(reqMessage, "utf-8"))
 
-            while True:
-                selectingSocket = select.select([newSocket],[],[],1) #if timeout, 3 empty parameters appear
-                if selectingSocket[0]: #check if there is a timeout
-                    receiveMessage = newSocket.recv(10000)
-                    reply += receiveMessage
-                else:
-                    break
-                #print(receiveMessage)
+                objectFile = open(urlName, "wb")
 
-            if(len(reply) > 0): #putting boundaries on the receive message
-                tcpSocket.sendall(reply)
-            else: 
-                return 
+                while True:
+                    selectingSocket = select.select([newSocket],[],[],1) #if timeout, 3 empty parameters appear
+                    if selectingSocket[0]: #check if there is a timeout
+                        receiveMessage = newSocket.recv(10000)
+                        reply += receiveMessage
+                    else:
+                        break
+                    #print(receiveMessage)
 
-        except socket.error:
-            if newSocket:
-                newSocket.close()
-            if tcpSocket:
-                tcpSocket.close()
+                if(len(reply) > 0): #putting boundaries on the receive message
+                    tcpSocket.sendall(reply)
+                    objectFile.write(reply)
+                    print("FILE CREATED")
+                else: 
+                    return 
 
-            sys.exit(1)
+            except socket.error:
+                if newSocket:
+                    newSocket.close()
+                if tcpSocket:
+                    tcpSocket.close()
+
+                sys.exit(1)
 
         # Final step. Close the socket
         newSocket.close()
