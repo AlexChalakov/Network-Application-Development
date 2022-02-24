@@ -394,15 +394,17 @@ class Proxy(NetworkApplication):
         reqMessage = reqMessage.decode('utf-8')
         #print(reqMessage)
 
-        # 2. Extracting the needed things of the requested object from the message - read the text, create a url, read file whenever there is one 
+        # 2. Extracting the needed things of the requested object from the message - CACHING - read the text, create a url, read file whenever there is one 
         type = reqMessage.split('\n')[0] #first line
-        host = reqMessage.split()[4].split(':')[0]
-        tcpAddress = socket.gethostbyname(host) #get the target address
+        url = type.split(' ')[1] #the url is the name of the cache file
+        urlName = url.strip('http://') #getting the host
+        tcpAddress = socket.gethostbyname(urlName) #get the target address by getting the host
 
         #print(type)
-        #print(host)
         #print(tcpAddress)
-        
+        #print(url)
+        print(urlName)
+        #_neverssl_com
 
         # 3. Handle web server and send packet
         # except FileNotFoundError , if no file found, write on file
@@ -414,7 +416,7 @@ class Proxy(NetworkApplication):
             newSocket.send(bytes(reqMessage, "utf-8"))
 
             while True:
-                selectingSocket = select.select([newSocket],[],[],1) #if timeout 3 empty parameters appear
+                selectingSocket = select.select([newSocket],[],[],1) #if timeout, 3 empty parameters appear
                 if selectingSocket[0]: #check if there is a timeout
                     receiveMessage = newSocket.recv(10000)
                     reply += receiveMessage
