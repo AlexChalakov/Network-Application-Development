@@ -11,7 +11,6 @@ import time
 import select   #additional needed import
 import threading #additional for proxy and additional task web server
 
-
 def setupArgumentParser() -> argparse.Namespace:
         parser = argparse.ArgumentParser(
             description='A collection of Network Applications developed for SCC.203.')
@@ -52,7 +51,6 @@ def setupArgumentParser() -> argparse.Namespace:
 
         args = parser.parse_args()
         return args
-
 
 class NetworkApplication:
 
@@ -189,7 +187,6 @@ class ICMPPing(NetworkApplication):
         # 3. Print out the returned delay (and other relevant details) using the printOneResult method
             self.printOneResult(args.hostname, 50, delay, 60)
 
-
 class Traceroute(NetworkApplication): # provides a map of how data on the internet travels from its source to its destination. 
 
     # A traceroute works by sending Internet Control Message Protocol (ICMP) packets, 
@@ -304,7 +301,6 @@ class Traceroute(NetworkApplication): # provides a map of how data on the intern
         self.createRoute(destAddr, 1)
         time.sleep(1)
 
-
 class WebServer(NetworkApplication):
 
     def handleRequest(self, tcpSocket):
@@ -359,7 +355,6 @@ class WebServer(NetworkApplication):
         # 5. Close server socket
         serverSocket.close()
 
-
 class Proxy(NetworkApplication):
 
     def __init__(self, args):
@@ -407,10 +402,10 @@ class Proxy(NetworkApplication):
 
         # 3. Caching, try to find the file if its been created
         try:
-            handleFile = open(urlName, "rb")
-            readFile = handleFile.read()
+            handleFile = open(urlName, "rb") #opening file that has been created
+            readFile = handleFile.read()   #actual reading of the file and putting the contents of it in the variable
             #reply += readFile
-            tcpSocket.sendall(readFile)
+            tcpSocket.sendall(readFile) #sending the created file to the reply
             print("FILE READ")
             # 4. Handle web server and send packet
             # except FileNotFoundError , if no file found, write on file
@@ -423,7 +418,7 @@ class Proxy(NetworkApplication):
                 newSocket.connect((tcpAddress, port))
                 newSocket.send(bytes(reqMessage, "utf-8"))
 
-                objectFile = open(urlName, "wb")
+                objectFile = open(urlName, "wb") #opening file with url as name, if it doesn't exist, creates it
 
                 while True:
                     selectingSocket = select.select([newSocket],[],[],1) #if timeout, 3 empty parameters appear
@@ -436,7 +431,7 @@ class Proxy(NetworkApplication):
 
                 if(len(reply) > 0): #putting boundaries on the receive message
                     tcpSocket.sendall(reply)
-                    objectFile.write(reply)
+                    objectFile.write(reply) #writing the contents of the reply into the file
                     print("FILE CREATED")
                 else: 
                     return 
@@ -452,7 +447,6 @@ class Proxy(NetworkApplication):
         # Final step. Close the socket
         #newSocket.close()
         tcpSocket.close()
-
 
 if __name__ == "__main__":
     args = setupArgumentParser()
