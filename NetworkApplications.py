@@ -407,14 +407,15 @@ class Proxy(NetworkApplication):
 
         # 3. Caching, try to find the file if its been created
         try:
-            handleFile = open(urlName, "r")
+            handleFile = open(urlName, "rb")
             readFile = handleFile.read()
-            reply += readFile
-            tcpSocket.sendall(reply)
+            #reply += readFile
+            tcpSocket.sendall(readFile)
             print("FILE READ")
             # 4. Handle web server and send packet
             # except FileNotFoundError , if no file found, write on file
         except Exception as e:
+            print(e)
             try:
                 #reply = b''
                 port = 80
@@ -449,7 +450,7 @@ class Proxy(NetworkApplication):
                 sys.exit(1)
 
         # Final step. Close the socket
-        newSocket.close()
+        #newSocket.close()
         tcpSocket.close()
 
 
